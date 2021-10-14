@@ -4,7 +4,7 @@ FROM python:3.9.6-slim-bullseye
 
 # Definition of a Device & Service
 ENV POSITION=Runtime \
-    SERVICE=face-recognition-from-an-image \
+    SERVICE=azure-face-api-identifier-kube \
     AION_HOME=/var/lib/aion
 # ENV GRPC_TRACE=all
 # ENV GRPC_VERBOSITY=DEBUG

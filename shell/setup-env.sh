@@ -26,5 +26,5 @@ rm ${TARGET_FILE1} ${TARGET_FILE2}
 mv temp1.yml ${TARGET_FILE1}
 mv temp2.yml ${TARGET_FILE2}
 
-cp ${TARGET_FILE1} ../register-an-image-to-face-api-kube/${TARGET_FILE1}
-cp ${TARGET_FILE2} ../register-an-image-to-face-api-kube/${TARGET_FILE2}
+cp ${TARGET_FILE1} ../azure-face-api-registrator-kube/${TARGET_FILE1}
+cp ${TARGET_FILE2} ../azure-face-api-registrator-kube/${TARGET_FILE2}

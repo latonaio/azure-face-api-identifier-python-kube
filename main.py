@@ -24,7 +24,7 @@ from custom_logger import init_logger
 
 
 BASE_PATH = os.path.join(os.path.dirname(__file__), )
-SERVICE_NAME = 'face-recognition-from-an-image'
+SERVICE_NAME = 'azure-face-api-identifier-kube'
 PERSON_GROUP_ID = ''
 logger = logging.getLogger(__name__)
 
