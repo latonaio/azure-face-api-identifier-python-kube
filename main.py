@@ -154,7 +154,7 @@ async def main():
                 if person is not None:
                     logger.info('person id: {}'.format(str(person)))
                     res = msa.check_guest_database(str(person.get('person_id')))
-                if person is not None and res:
+                if person is not None and res and person["confidence"]>0.60:
                     logger.info('detect existing face (guestid: {})'.format(str(res)))
                     data = {
                         'connection_key': 'response',
