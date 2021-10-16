@@ -16,6 +16,9 @@ from msrest.authentication import CognitiveServicesCredentials
 # AION共通モジュール
 from aion.microservice import main_decorator, Options, WITHOUT_KANBAN
 
+# redis用モジュール
+import redis
+
 # rabbitMQ用モジュール
 from rabbitmq_client import RabbitmqClient
 
@@ -25,9 +28,15 @@ from custom_logger import init_logger
 
 BASE_PATH = os.path.join(os.path.dirname(__file__), )
 SERVICE_NAME = 'azure-face-api-identifier-kube'
+DEFAULT_REDIS_HOST = 'redis-cluster'
 PERSON_GROUP_ID = ''
 logger = logging.getLogger(__name__)
 
+class RedisClient:
+    def __init__(self):
+        self.client = redis.Redis(host=DEFAULT_REDIS_HOST, port=6379)
+    def hmset(self, key, value):
+        self.client.hmset(key, value)
 
 class FaceRecognition():
     def __init__(self):
@@ -101,17 +110,16 @@ async def main():
     # キューの読み込み元
     queue_from = os.environ['QUEUE_FROM']
     # キューの書き込み先
-    queue_to = os.environ['QUEUE_TO']
     queue_to_for_log = os.environ['QUEUE_TO_FOR_LOG']
 
     try:
-        mq_client = await RabbitmqClient.create(rabbitmq_url, {queue_from}, {queue_to, queue_to_for_log})
+        mq_client = await RabbitmqClient.create(rabbitmq_url, {queue_from}, {queue_to_for_log})
     except Exception as e:
         logger.error({
             'message': 'failed to connect rabbitmq!',
             'error': str(e),
             'queue_from': queue_from,
-            'queue_to': queue_to,
+            'queue_to_for_log': queue_to_for_log,
         })
         # 本来 sys.exit を使うべきだが、効かないので
         os._exit(1)
@@ -148,7 +156,7 @@ async def main():
                     res = msa.check_guest_database(str(person.get('person_id')))
                 if person is not None and res:
                     logger.info('detect existing face (guestid: {})'.format(str(res)))
-                    payload = {
+                    data = {
                         'connection_key': 'response',
                         'result': True,
                         'redis_key': redis_key,
@@ -159,12 +167,10 @@ async def main():
                     }
                     logger.debug({
                         'message': 'send message',
-                        'params': payload
+                        'params': data
                     })
-                    await mq_client.send(queue_to, payload)
-                    logger.info('sent message to %s', queue_to)
                 else:
-                    payload = {
+                    data = {
                         'connection_key': 'response',
                         'result': True,
                         'redis_key': redis_key,
@@ -175,10 +181,8 @@ async def main():
                     }
                     logger.info({
                         'message': 'send message: detect new face',
-                        'params': payload,
+                        'params': data,
                     })
-                    await mq_client.send(queue_to, payload)
-                    logger.info('sent message to %s', queue_to)
 
                 # 顔認証ログ：ログサービス転送用
                 payload_for_log = {
@@ -192,15 +196,18 @@ async def main():
                     'message': 'send message for log',
                     'params': payload_for_log
                 })
+
                 await mq_client.send(queue_to_for_log, payload_for_log)
                 logger.info('sent message to %s', queue_to_for_log)
+
+                await insert_data_to_redis(data)
 
             except Exception as e:
                 logger.error({
                     'message': 'error',
                     'error': str(e),
                 })
-                payload = {
+                data = {
                     'connection_key': 'response',
                     'result': False,
                     'redis_key': redis_key,
@@ -208,11 +215,61 @@ async def main():
                 }
                 logger.debug({
                     'message': 'send message',
-                    'params': payload,
+                    'params': data,
                 })
-                await mq_client.send(queue_to, payload)
-                logger.info('sent message to %s', queue_to)
 
+                await insert_data_to_redis(data)
+
+
+async def insert_data_to_redis(data):
+            try:
+                redis_key = int(data.get('redis_key'))
+                customer = data.get('status')
+                prior_res = data.get('result')
+
+                if prior_res and customer == 'existing':
+                    data = {
+                        'status': 'success',
+                        'customer': customer,
+                        'guest_id': int(data.get('guest_id')),
+                    }
+                    logger.debug({
+                        'message': 'redis data',
+                        'params': data
+                    })
+                elif prior_res and customer == 'new':
+                    data = {
+                        'status': 'success',
+                        'customer': customer,
+                        'age_by_face': int(data.get('age')),
+                        'gender_by_face': data.get('gender'),
+                        'image_path': data.get('filepath'),
+                    }
+                    logger.debug({
+                        'message': 'redis data',
+                        'params': data
+                    })
+                else:
+                    data = {
+                        'status': 'failed',
+                        'customer': '',
+                        'guest_id': '',
+                        'failed_ms': data.get('microservice')
+                    }
+                    logger.debug({
+                        'message': 'redis data',
+                        'params': data
+                    })
+
+                rc = RedisClient()
+                rc.hmset(redis_key, data)
+                logger.info('insert redis')
+
+            except Exception as e:
+                logger.error({
+                    'message': 'error',
+                    'error': str(e),
+                })
 
 @main_decorator(SERVICE_NAME, WITHOUT_KANBAN)
 def main_wrapper(opt: Options):
