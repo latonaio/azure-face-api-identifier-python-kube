@@ -3,12 +3,18 @@
 1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の位置座標(X軸/Y軸)、性別・年齢等の情報を取得します。  
 Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
 この仕様を利用して、その先頭の顔の FaceID、性別・年齢 等の 情報 を取得・保持します。  
-最後に、取得・保持されたFaceIDを、SQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
-なお、本マイクロサービスは、顔認証判定結果のデータ解析のために、ログデータを出力します。
+最後に、取得・保持されたFaceIDを、アプリケーションサイドでSQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
+なお、本マイクロサービスは、顔認証判定結果のデータ解析のために、ログデータを出力します。  
 
 参考1：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
+
 参考2：Azure Face API の仕様により、1つの判定されたFaceIDに対して複数の認証結果の選択肢であるPersonIDが存在する場合、それぞれのPersonIDに対して確証度を付与して出力します。  
-このとき、確証度の高い順にPersonIDのデータが並びます。この仕様を利用して、1つのFacdIDに対して、一定の確証度の閾値を設け、その閾値以上の確証度を持つPersonID(大抵の状況ではPersonID=FaceID)とその性別・年齢等の情報を取得・保持します。
+このとき、確証度の高い順にPersonIDのデータが並びます。この仕様を利用して、1つのFacdIDに対して、一定の確証度の閾値を設け、その閾値以上の確証度を持つPersonID(大抵の状況ではPersonID=FaceID)とその性別・年齢等の情報を取得・保持します。  
+
+参考3：Azure Face API の仕様では、Azure Face API(Detect)では、FaceID ならびに PersonID は Azure Face API で永続的に管理維持されません。  
+Azure face API で永続的にFaceID / PersonID を管理維持する(通常のアプリケーションの要求としてこの行為が必要になります)ためには、別途、Azure Face API(Persisted Faces - Post)を利用する必要があります。  
+この機能の利用については、[azure-face-api-registrator-kube](https://github.com/latonaio/azure-face-api-registrator-kube) を参照してください。  
+
 
 ## 前提条件  
 Azure Face API サービス に アクセスキー、エンドポイント、Person Group を登録します。  
