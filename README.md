@@ -50,20 +50,38 @@ azure-cognitiveservices-vision-face==0.4.1
 2. 顔画像のパス(image_path)  
 入力顔画像のパス  
 
-#### Output1
-出力データのJSONフォーマットは、outputs/sample.json にある通り、次の様式です。
+#### Output1-1  
+出力データのJSONフォーマットは、outputs/sample1.json にある通り、次の様式です。  
 ```
 {
+    "connection_key": "response",
     "result": true,
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/634173065679.jpg",
-    "guest_id": 1,
-    "face_id_azure": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "attributes": {
-        "gender": "male",
-        "age": "37.0"
-    }
+    "redis_key": "0000000000000",
+    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
+    "status": "new",
+    "age": 37.0,
+    "gender": "male"
 }
+```  
+#### Output1-2  
+確証度を含めて取得する場合の出力データのJSONフォーマットは、outputs/sample2.json  にある通り、次の様式です。  
+確証度が一定の閾値を超えているPersonIDが複数存在する場合、Personのレコードが複数になります。
 ```
+{
+    "connection_key": "response",
+    "result": true,
+    "redis_key": "0000000000000",
+    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634175178825.jpg",
+    "person": {
+        "additional_properties": {},
+        "person_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "confidence": 0.94743
+    },
+    "guest_id": 1,
+    "status": "existing"
+}
+```  
+
 #### Output2
 ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/logs.sample.json にある通り、次の様式です。
 ```

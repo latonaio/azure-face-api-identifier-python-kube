@@ -1,0 +1,13 @@
+{
+    "connection_key": "response",
+    "result": true,
+    "redis_key": "0000000000000",
+    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634175178825.jpg",
+    "person": {
+        "additional_properties": {},
+        "person_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "confidence": 0.94743
+    },
+    "guest_id": 1,
+    "status": "existing"
+}
