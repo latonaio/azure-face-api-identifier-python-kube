@@ -4,10 +4,11 @@
 Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
 この仕様を利用して、その先頭の顔の FaceID、性別・年齢 等の 情報 を取得・保持します。  
 最後に、取得・保持されたFaceIDを、SQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
-なお、本マイクロサービスは、顔認証のデータ解析のために、ログデータを出力します。
+なお、本マイクロサービスは、顔認証判定結果のデータ解析のために、ログデータを出力します。
 
-参考：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
-参考：1枚の画像に対して複数の顔が存在する場合は、1番確証度が大きい顔に対して判定を行います。  
+参考1：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
+参考2：Azure Face API の仕様により、1つの判定されたFaceIDに対して複数の認証結果の選択肢であるPersonIDが存在する場合、それぞれのPersonIDに対して確証度を付与して出力します。  
+このとき、確証度の高い順にPersonIDのデータが並びます。この仕様を利用して、1つのFacdIDに対して、一定の確証度の閾値を設け、その閾値以上の確証度を持つPersonID(大抵の状況ではPersonID=FaceID)とその性別・年齢等の情報を取得・保持します。
 
 ## 前提条件  
 Azure Face API サービス に アクセスキー、エンドポイント、Person Group を登録します。  
@@ -58,11 +59,11 @@ azure-cognitiveservices-vision-face==0.4.1
 }
 ```
 #### Output2
-ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/sample.json にある通り、次の様式です。
+ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/logs.sample.json にある通り、次の様式です。
 ```
 {
     "imagePath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
-    "faceId": "00000000-0000-0000-0000-000000000000",
+    "faceId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "responseData": {
         "candidates": []
     }
