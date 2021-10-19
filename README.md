@@ -48,7 +48,7 @@ azure-cognitiveservices-vision-face==0.4.1
 }
 ```
 1. 顧客ID(guest_key)  
-(エッジ)アプリケーションの顧客ID???  
+(エッジ)アプリケーションの顧客ID  
 2. 顔画像のパス(image_path)  
 入力顔画像のパス  
 
