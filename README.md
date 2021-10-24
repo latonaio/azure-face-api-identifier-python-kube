@@ -97,22 +97,22 @@ azure-cognitiveservices-vision-face==0.4.1
 ```
 
 ## Getting Started
-1. 下記コマンドでDockerイメージを作成する。  
+1. 下記コマンドでDockerイメージを作成します。  
 ```
 make docker-build
 ```
-2. aion-service-definitions/services.ymlに設定を記載し、AionCore経由でKubernetesコンテナを起動する。  
-services.ymlへの記載例  
-multiple: noとして起動する。  
+2. aion-service-definitions/services.ymlに設定を記載し、AionCore経由でKubernetesコンテナを起動します。  
+services.ymlへの記載例：    
 ```
 azure-face-api-identifier-kube:
-  multiple: no
+  startup: yes
+  always: yes
+  scale: 1
   env:
     MYSQL_USER: XXXXXXXX
     MYSQL_HOST: mysql
     MYSQL_PASSWORD: xxxxxxxxx
     MYSQL_DB: database
-    KANBAN_ADDR: aion-statuskanban:10000
     RABBITMQ_URL: amqp://username:password@rabbitmq:5672/virtualhost
     QUEUE_FROM: queue_from
     QUEUE_TO: queue_to

@@ -13,9 +13,6 @@ import MySQLdb
 from azure.cognitiveservices.vision.face import FaceClient
 from msrest.authentication import CognitiveServicesCredentials
 
-# AION共通モジュール
-from aion.microservice import main_decorator, Options, WITHOUT_KANBAN
-
 # redis用モジュール
 import redis
 
@@ -271,11 +268,5 @@ async def insert_data_to_redis(data):
                     'error': str(e),
                 })
 
-@main_decorator(SERVICE_NAME, WITHOUT_KANBAN)
-def main_wrapper(opt: Options):
-    logger.info('start')
-    asyncio.run(main())
-
-
 if __name__ == '__main__':
-    main_wrapper()
+    asyncio.run(main())
