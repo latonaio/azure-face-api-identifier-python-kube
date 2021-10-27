@@ -35,9 +35,12 @@ $ bash train.sh
 * `shell/setup-env.sh`　は、face-api-config.jsonと.envを作成するためのシェルスクリプトです。    
 
 ## Requirements  
+azure-face-api の version を指定します。  
+本レポジトリの requirements.txt では、下記のように記載されています。  
 ```
 azure-cognitiveservices-vision-face==0.4.1
 ```
+
 ## I/O
 #### Input
 入力データのJSONフォーマットは、inputs/sample.json にある通り、次の様式です。
