@@ -15,7 +15,7 @@
 Azure face API で永続的にFaceID / PersonID を管理維持する(通常のアプリケーションの要求としてこの行為が必要になります)ためには、別途、Azure Face API(Person Group _ Person - Create / Add Face)を利用する必要があります。この機能の利用については、[azure-face-api-registrator-kube](https://github.com/latonaio/azure-face-api-registrator-kube) を参照してください。
 
 ## azure-face-api-identifier-kube を使用したエッジコンピューティングアーキテクチャの一例
-![フローチャート図](doc/omotebako_architecture_20211016.drawio.png)
+![フローチャート図](doc/omotebako_architecture_20211104.drawio.png)
 
 
 ## 前提条件  
