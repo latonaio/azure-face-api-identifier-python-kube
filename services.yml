@@ -8,6 +8,6 @@ azure-face-api-identifier-kube:
     MYSQL_PASSWORD: xxxxxxxxx
     MYSQL_DB: database
     RABBITMQ_URL: amqp://username:password@rabbitmq:5672/virtualhost
-    QUEUE_FROM: azure-face-api-identifier-kube-queue
+    QUEUE_ORIGIN: azure-face-api-identifier-kube-queue
     QUEUE_TO: get-response-of-face-api-kube-queue
     QUEUE_TO_FOR_LOG: send-data-to-azure-iot-hub-queue
