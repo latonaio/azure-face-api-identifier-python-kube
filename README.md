@@ -121,4 +121,4 @@ azure-face-api-identifier-kube:
     QUEUE_TO_FOR_LOG: send-data-to-azure-iot-hub-queue
 ```
 ## Flowchart
-![フローチャート図](doc/face-recognition-flowchart.png)
+![フローチャート図](doc/omotebako_architecture_20211104.drawio.png)
