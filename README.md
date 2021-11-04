@@ -34,7 +34,7 @@ $ bash train.sh
 * SQLにface_id_azure (TEXT), guest_id (INT) カラムを持つguestテーブルを作成しておきます。  
 * `shell/setup-env.sh`　は、face-api-config.jsonと.envを作成するためのシェルスクリプトです。    
 
-## Requirements  
+## Requirements（Azure Face API の Version 指定)  
 azure-face-api の version を指定します。  
 本レポジトリの requirements.txt では、下記のように記載されています。  
 ```
