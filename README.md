@@ -1,23 +1,40 @@
-# azure-face-api-registrator-kube   
+# azure-face-api-identifier-kube  
 ## 概要  
-1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の位置座標、性別・年齢等の情報を取得します。   
-Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。    
-この仕様を利用して、その先頭の顔の 位置座標、性別・年齢 等の 情報 を保持します。  
-次に、この位置座標を使って、その位置座標の通り、当該画像を切り取ります。  
-続いて、Azure Face API(Person Group _ Person - Create) に1つのレコードを登録します。  
-そして、Azure Face API(Person Group _ Person - Add Face) に当該切り取られた画像を入力して、当該レコードに画像を更新します。        
-最後に、Azure Face API の AI の学習内容に更新をかけるために、Azure Face API(Train) を実行します。 
-  
-参考：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。    
+1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の、位置座標、性別・年齢、等、の情報を取得します。  
+このとき、Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
+この仕様を利用して、その先頭の顔の FaceID、性別・年齢 等の 情報 を取得・保持します。  
+最後に、取得・保持されたFaceIDを、アプリケーションサイドでSQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
+なお、本マイクロサービスは、顔認証判定結果のデータ解析のために、ログデータを出力します。  
 
-## azure-face-api-registrator-kube を使用したエッジコンピューティングアーキテクチャの一例  
-![フローチャート図](doc/omotebako_architecture_20211016.drawio.png)  
+参考1：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
 
-## 前提条件    
+参考2：Azure Face API の仕様により、1つの判定されたFaceIDに対して複数の認証結果の選択肢であるPersonIDが存在する場合、それぞれのPersonIDに対して確証度を付与して出力します。  
+このとき、確証度の高い順にPersonIDのデータが並びます。この仕様を利用して、1つのFacdIDに対して、一定の確証度の閾値を設け、その閾値以上の確証度を持つPersonID(大抵の状況ではPersonID=FaceID)とその性別・年齢等の情報を取得・保持します。  
+
+参考3：Azure Face API の仕様では、Azure Face API(Detect)では、FaceID ならびに PersonID は Azure Face API で永続的に管理維持されません。  
+Azure face API で永続的にFaceID / PersonID を管理維持する(通常のアプリケーションの要求としてこの行為が必要になります)ためには、別途、Azure Face API(Person Group _ Person - Create / Add Face)を利用する必要があります。この機能の利用については、[azure-face-api-registrator-kube](https://github.com/latonaio/azure-face-api-registrator-kube) を参照してください。
+
+## azure-face-api-identifier-kube を使用したエッジコンピューティングアーキテクチャの一例
+![フローチャート図](doc/omotebako_architecture_20211016.drawio.png)
+
+
+## 前提条件  
 Azure Face API サービス に アクセスキー、エンドポイント、Person Group を登録します。  
 登録されたエンドポイント、アクセスキー、Person Group を、本リポジトリ内の face-api-config.json に記載してください。  
 
-## Requirements（Azure Face API の Version 指定)    
+## Azure Face API(Detect) の テスト実行  
+Azure Face API(Detect) の テスト実行 をするときは、sample/test_01.jpgに任意の顔画像を配置してください。  
+Azure FAce API 登録されているエンドポイントを、事前に学習させます。下記の手順で学習させることができます。  
+```
+# shellディレクトリ内のrecreate-group.shを実行します。シェル内のENDPOINT, SUBSCRIPTION_KEY, PERSON_GROUP_IDは使用するFaceAPIのエンドポイントに応じて書き換えて下さい。
+$ bash recreate-group.sh
+# 上記のコマンド実行するとPerson_idが出力されるので、train.shの3行目のPERSON_IDの値を置換しシェルを実行して下さい。
+$ bash train.sh
+```
+* SQLにface_id_azure (TEXT), guest_id (INT) カラムを持つguestテーブルを作成しておきます。  
+* `shell/setup-env.sh`　は、face-api-config.jsonと.envを作成するためのシェルスクリプトです。    
+
+## Requirements（Azure Face API の Version 指定)  
 azure-face-api の version を指定します。  
 本レポジトリの requirements.txt では、下記のように記載されています。  
 ```
@@ -25,123 +42,84 @@ azure-cognitiveservices-vision-face==0.4.1
 ```
 
 ## I/O
-#### Input-1
-入力データ1のJSONフォーマットは、inputs/sample.json にある通り、次の様式です。  
+#### Input
+入力データのJSONフォーマットは、inputs/sample.json にある通り、次の様式です。
 ```
 {
-    "output_data_path": "/var/lib/aion/Data/direct-next-service_1",
-    "guest_id": 1,
-    "face_image_path": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg"
+    "guest_key": "xxxxxxxxxxxxx",
+    "image_path": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg"
 }
 ```
-1. 入力データのファイルパス(output_data_path)    
-前工程のマイクロサービスから渡されたJSONメッセージファイルのパス          
-2. 顧客ID(guest_id)      
-(エッジ)アプリケーションの顧客ID       
-3. 顔画像のパス(face_image_path)        
+1. 顧客ID(guest_key)  
+(エッジ)アプリケーションの顧客ID  
+2. 顔画像のパス(image_path)  
 入力顔画像のパス  
 
-#### Input-2
-入力データ2として、Azure Face API(Detect)への入力は、Azure FaceClient を用いて、主として main.py の次のソースコードにより行われます。  
-本レポジトリの main.py の例では、画像に映っているすべての人物の顔の位置座標(X軸/Y軸)に加えて、性別と年齢のみを、Azure Face API から取得するという記述になっています。  
-
-```
-    def getFaceAttributes(self, imagePath):
-        params = ['gender', 'age']
-        # return self.face_client.person_group_person.get(PERSON_GROUP_ID, personId)
-        with open(imagePath, 'rb') as image_data:
-            return self.face_client.face.detect_with_stream(
-                image_data, return_face_attributes=params
-            )
-```
-#### Input-3
-入力データ3として、Azure Face API(Person Group _ Person - Create)、ならびに、Azure Face API(Person Group _ Person - Add Face)への入力は、Azure FaceClient を用いて、主として main.py の次のソースコードにより行われます。  
-
-```
-    def setPersonImage(self, personId, imagePath, targetFace=None):
-        logger.debug('Set person image ' + imagePath)
-        with open(imagePath, 'r+b') as image:
-            self.face_client.person_group_person.add_face_from_stream(
-                PERSON_GROUP_ID, personId, image, targetFace)
-```            
-#### Input-4
-入力データ4として、Azure Face API(Train)への入力は、Azure FaceClient を用いて、主として main.py の次のソースコードにより行われます。  
-```
-    def train(self):
-        # Train the person group
-        self.face_client.person_group.train(PERSON_GROUP_ID)
-
-        logger.debug('Training the person group...')
-        while True:
-            training_status = self.face_client.person_group.get_training_status(PERSON_GROUP_ID)
-            logging.info('Training status: {}.'.format(training_status.status))
-            if (training_status.status is TrainingStatusType.succeeded):
-                break
-            elif (training_status.status is TrainingStatusType.failed):
-                logger.error('Failed to train ...')
-                raise Exception('Training the person group has failed.')
-            time.sleep(1)
-```
-
-#### Output-1  
-出力データ1のJSONフォーマットは、outputs/face-api-detect-response-sample.json にある通り、次の様式です。（一部抜粋）  
+#### Output1-1  
+出力データのJSONフォーマットは、outputs/sample1.json にある通り、次の様式です。  
 ```
 {
-    "faceId": "c5c24a82-6845-4031-9d5d-978df9175426",
-    "recognitionModel": "recognition_01",
-    "faceRectangle": {
-      "width": 78,
-      "height": 78,
-      "left": 394,
-      "top": 54
-    },
-    "faceAttributes": {
-      "age": 71,
-      "gender": "male",
-    },
-}
-```
-
-#### Output-2  
-出力データ2のJSONフォーマットは、outputs/sample.json にある通り、次の様式です。  
-```
-{
+    "connection_key": "response",
     "result": true,
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/634173065679.jpg",
+    "redis_key": "0000000000000",
+    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
+    "status": "new",
+    "age": 37.0,
+    "gender": "male"
+}
+```  
+#### Output1-2  
+確証度を含めて取得する場合の出力データのJSONフォーマットは、outputs/sample2.json  にある通り、次の様式です。  
+確証度が一定の閾値を超えているPersonIDが複数存在する場合、Personのレコードが複数になります。
+```
+{
+    "connection_key": "response",
+    "result": true,
+    "redis_key": "0000000000000",
+    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634175178825.jpg",
+    "person": {
+        "additional_properties": {},
+        "person_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "confidence": 0.94743
+    },
     "guest_id": 1,
-    "face_id_azure": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "attributes": {
-        "gender": "male",
-        "age": "37.0"
+    "status": "existing"
+}
+```  
+
+#### Output2
+ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/logs.sample.json にある通り、次の様式です。
+```
+{
+    "imagePath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
+    "faceId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "responseData": {
+        "candidates": []
     }
 }
 ```
-1. ゲストID(guest_id)    
-(エッジ)アプリケーションの顧客ID        
-2. 顔画像ファイルのパス(filepath)      
-顔画像ファイルのパス      
-3. AzureFaceID(face_id_azure)      
-AzureFaceAPIのFaceID    
-4. 顔画像の属性情報      
-AzureFaceAPIの返り値としての性別・年齢情報  
 
-
-## Getting Started  
+## Getting Started
 1. 下記コマンドでDockerイメージを作成します。  
 ```
 make docker-build
 ```
 2. aion-service-definitions/services.ymlに設定を記載し、AionCore経由でKubernetesコンテナを起動します。  
-services.ymlへの記載例：   
+services.ymlへの記載例：    
 ```
-  azure-face-api-registrator-kube:
-    startup: yes
-    always: yes
-    scale: 1
-    env:
-      RABBITMQ_URL: amqp://username:password@rabbitmq:5672/virtualhost
-      QUEUE_FROM: queue_from
-      QUEUE_TO: queue_to
+azure-face-api-identifier-kube:
+  startup: yes
+  always: yes
+  scale: 1
+  env:
+    MYSQL_USER: XXXXXXXX
+    MYSQL_HOST: mysql
+    MYSQL_PASSWORD: xxxxxxxxx
+    MYSQL_DB: database
+    RABBITMQ_URL: amqp://username:password@rabbitmq:5672/virtualhost
+    QUEUE_FROM: azure-face-api-identifier-kube-queue
+    QUEUE_TO: get-response-of-face-api-kube-queue
+    QUEUE_TO_FOR_LOG: send-data-to-azure-iot-hub-queue
 ```
 ## Flowchart
-![フローチャート図](doc/flowchart.png)
+![フローチャート図](doc/face-recognition-flowchart.png)
