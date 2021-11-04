@@ -1,125 +1,237 @@
-# azure-face-api-identifier-kube  
+# rabbitmq-on-kubernetes
+
 ## 概要  
-1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の、位置座標、性別・年齢、等、の情報を取得します。  
-このとき、Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
-この仕様を利用して、その先頭の顔の FaceID、性別・年齢 等の 情報 を取得・保持します。  
-最後に、取得・保持されたFaceIDを、アプリケーションサイドでSQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
-なお、本マイクロサービスは、顔認証判定結果のデータ解析のために、ログデータを出力します。  
 
-参考1：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
+rabbitmq-on-kubernetes は、RabbitMQ を設定し、Kubernetes上 の pod として動かすために必要な、初期化スクリプト と deployment.yml です。
 
-参考2：Azure Face API の仕様により、1つの判定されたFaceIDに対して複数の認証結果の選択肢であるPersonIDが存在する場合、それぞれのPersonIDに対して確証度を付与して出力します。  
-このとき、確証度の高い順にPersonIDのデータが並びます。この仕様を利用して、1つのFacdIDに対して、一定の確証度の閾値を設け、その閾値以上の確証度を持つPersonID(大抵の状況ではPersonID=FaceID)とその性別・年齢等の情報を取得・保持します。  
+## rabbitmq-on-kubernetes を使用したエッジコンピューティングアーキテクチャ  
+![フローチャート図](doc/omotebako_architecture_20211016.drawio.png)  
 
-参考3：Azure Face API の仕様では、Azure Face API(Detect)では、FaceID ならびに PersonID は Azure Face API で永続的に管理維持されません。  
-Azure face API で永続的にFaceID / PersonID を管理維持する(通常のアプリケーションの要求としてこの行為が必要になります)ためには、別途、Azure Face API(Person Group _ Person - Create / Add Face)を利用する必要があります。この機能の利用については、[azure-face-api-registrator-kube](https://github.com/latonaio/azure-face-api-registrator-kube) を参照してください。
+## AION における RabbitMQ の 役割  
 
-## azure-face-api-identifier-kube を使用したエッジコンピューティングアーキテクチャの一例
-![フローチャート図](doc/omotebako_architecture_20211016.drawio.png)
+AION において、RabbitMQ は、以下の領域で、それぞれの役割を果たします。   
+
+・[aion-service-definitions](https://github.com/latonaio/aion-service-definitions)で定義される各マイクロサービス間のメッセージのやり取り：  
+  各マイクロサービスは、RabbitMQ に、メッセージとして、処理結果のJSONと、宛先(=次のマイクロサービス)等のメタデータを渡します。  
+  RabbitMQは、当該宛先で指定された次のマイクロサービスに、そのメッセージを渡します。  
+  次のマイクロサービスは、RabbitMQ から当該メッセージを受け取り、必要なデータを読み取り、処理を行います。（次のマイクロサービスは常時待機状態で、イベントドリブンで処理が行われます）  
+  このように、RabbitMQ は、aion-service-definitions で定義される、各マイクロサービス間のメッセージブローカーの役割を果たします。 
+
+## RabbitMQ の初期設定  
+
+サンプルの初期化スクリプト `init-queues.sh` を用意しています。必要に応じて設定部分などを書き換え実行してください。
+
+初期化スクリプトでは以下の操作を行います:
+
+* 管理ユーザをデフォルトユーザから新しいユーザに変更
+	* デフォルトユーザ (guest) の削除
+	* 新規ユーザの作成
+	* 新規ユーザに管理権限を付与
+	* 既存のバーチャルホスト全てへのアクセス権限を付与
+* バーチャルホストの新規作成
+* キューの作成
+
+## RabbitMQ の導入  
+
+`kubectl apply -f deployment.yml` コマンドを利用してください。
+
+必要に応じて yml 内の設定などを変更してください。
+
+* RabbitMQ のデータの永続化先: `rabbitmq-data` の `hostPath`.`path` 部分
+* RabbitMQ のバージョン: `image: rabbitmq-[バージョン]-management-alpine` の部分
+
+特に問題がない場合、導入時点での最新版 RabbitMQ のご利用をおすすめします。[こちら](https://rabbitmq.com/download.html)で最新バージョンを確認できます。
 
 
-## 前提条件  
-Azure Face API サービス に アクセスキー、エンドポイント、Person Group を登録します。  
-登録されたエンドポイント、アクセスキー、Person Group を、本リポジトリ内の face-api-config.json に記載してください。  
+## RabbitMQ のデプロイ・稼働  
+[aion-core-manifests](https://github.com/latonaio/aion-core-manifests)の template/bases/rabbitmq の deployment.yml に RabbitMQ をデプロイするために必要なyamlファイルが配置されています。    
 
-## Azure Face API(Detect) の テスト実行  
-Azure Face API(Detect) の テスト実行 をするときは、sample/test_01.jpgに任意の顔画像を配置してください。  
-Azure FAce API 登録されているエンドポイントを、事前に学習させます。下記の手順で学習させることができます。  
+ymlファイル（deployment.yml）の中身  
 ```
-# shellディレクトリ内のrecreate-group.shを実行します。シェル内のENDPOINT, SUBSCRIPTION_KEY, PERSON_GROUP_IDは使用するFaceAPIのエンドポイントに応じて書き換えて下さい。
-$ bash recreate-group.sh
-# 上記のコマンド実行するとPerson_idが出力されるので、train.shの3行目のPERSON_IDの値を置換しシェルを実行して下さい。
-$ bash train.sh
-```
-* SQLにface_id_azure (TEXT), guest_id (INT) カラムを持つguestテーブルを作成しておきます。  
-* `shell/setup-env.sh`　は、face-api-config.jsonと.envを作成するためのシェルスクリプトです。    
-
-## Requirements（Azure Face API の Version 指定)  
-azure-face-api の version を指定します。  
-本レポジトリの requirements.txt では、下記のように記載されています。  
-```
-azure-cognitiveservices-vision-face==0.4.1
-```
-
-## I/O
-#### Input
-入力データのJSONフォーマットは、inputs/sample.json にある通り、次の様式です。
-```
-{
-    "guest_key": "xxxxxxxxxxxxx",
-    "image_path": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg"
-}
-```
-1. 顧客ID(guest_key)  
-(エッジ)アプリケーションの顧客ID  
-2. 顔画像のパス(image_path)  
-入力顔画像のパス  
-
-#### Output1-1  
-出力データのJSONフォーマットは、outputs/sample1.json にある通り、次の様式です。  
-```
-{
-    "connection_key": "response",
-    "result": true,
-    "redis_key": "0000000000000",
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
-    "status": "new",
-    "age": 37.0,
-    "gender": "male"
-}
-```  
-#### Output1-2  
-確証度を含めて取得する場合の出力データのJSONフォーマットは、outputs/sample2.json  にある通り、次の様式です。  
-確証度が一定の閾値を超えているPersonIDが複数存在する場合、Personのレコードが複数になります。
-```
-{
-    "connection_key": "response",
-    "result": true,
-    "redis_key": "0000000000000",
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634175178825.jpg",
-    "person": {
-        "additional_properties": {},
-        "person_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-        "confidence": 0.94743
-    },
-    "guest_id": 1,
-    "status": "existing"
-}
-```  
-
-#### Output2
-ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/logs.sample.json にある通り、次の様式です。
-```
-{
-    "imagePath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
-    "faceId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "responseData": {
-        "candidates": []
-    }
-}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    run: rabbitmq
+  name: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: rabbitmq
+  strategy:
+    rollingUpdate:
+  template:
+    metadata:
+      labels:
+        run: rabbitmq
+    spec:
+      hostname: rabbitmq
+      containers:
+      - name: rabbitmq
+        tty: true
+        image: rabbitmq:3.9.5-management-alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5672
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq/mnesia
+      volumes:
+      - name: rabbitmq-data
+        hostPath:
+          path: /var/lib/aion/default/Data/rabbitmq
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    run: rabbitmq
+  name: rabbitmq
+spec:
+  selector:
+    run: rabbitmq
+  type: NodePort
+  ports:
+  - name: rabbitmq-node
+    port: 5672
+    protocol: TCP
+    targetPort: 5672
+    nodePort: 32094
+  - name: rabbitmq-mgmt
+    port: 15672
+    protocol: TCP
+    targetPort: 15672
+    nodePort: 32095
 ```
 
-## Getting Started
-1. 下記コマンドでDockerイメージを作成します。  
+## その他の RabbitMQ に関する設定
+
+`http://[端末の IP アドレス]:32095/` に Web UI がありますので、設定したユーザ名とパスワードでログインしてください。  
+
+
+## RabbitMQ への接続（Kubernetes内から、外部から）
+
+以下のように URL を指定して接続します。  
+
+なお、バーチャルホスト名に記号を含む場合は、URL エンコードが必要となります。  
+
+例: デフォルトバーチャルホスト `/` にアクセスする場合: `%2F`  
+
+
+### Kubernetes 内から
+
+`amqp://[ユーザ名]:[パスワード]@rabbitmq:5672/[バーチャルホスト名]` で接続できます。   
+
+
+### 外部のホストから
+
+`amqp://[ユーザ名]:[パスワード]@[端末の IP アドレス]:32094/[バーチャルホスト名]` で接続できます。  
+
+## RabbitMQ の ランタイム別 クライアントライブラリ  
+AION において RabbitMQ を正しく動作させるには、本レポジトリのリソースとは別に、次のランタイム別のクライアントライブラリが必要です。 
+マイクロサービスのランタイムの特性に応じて、必要なライブラリをクローンしてください。  
+
+* [rabbitmq-golang-client](https://github.com/latonaio/rabbitmq-golang-client)
+* [rabbitmq-nodejs-client](https://github.com/latonaio/rabbitmq-nodejs-client)
+* [rabbitmq-python-client](https://github.com/latonaio/rabbitmq-python-client)
+
+## マイクロサービスにおける RabbitMQ との 疎通 のための Main ソースコードの書き方  
+AIONでは、マイクロサービスにおける RabbitMQ との 疎通を、マイクロサービス の Main ソースコードに書く必要があります。  
+マイクロサービスにおける RabbitMQ との 疎通のための Main ソースコード の書き方 の サンプルとして、例えば、azure-face-api-registrator-kube の main.py において、次のように書かれています。  
 ```
-make docker-build
+# RabbitMQ用モジュール
+from rabbitmq_client import RabbitmqClient
+
+async def main():
+    init_logger()
+
+    # RabbitMQの接続情報
+    rabbitmq_url = os.environ['RABBITMQ_URL']
+    # キューの読み込み元
+    queue_origin = os.environ['QUEUE_ORIGIN']
+    # キューの書き込み先
+    queue_to = os.environ['QUEUE_TO']
+
+    try:
+        mq_client = await RabbitmqClient.create(rabbitmq_url, {queue_origin}, {queue_to})
+    except Exception as e:
+        logger.error({
+            'message': 'failed to connect rabbitmq!',
+            'error': str(e),
+            'queue_origin': queue_origin,
+            'queue_to': queue_to,
+        })
+        # 本来 sys.exit を使うべきだが、効かないので
+        os._exit(1)
+
+    logger.info('create mq client')
+
+    async for message in mq_client.iterator():
+        try:
+            async with message.process():
+                logger.info({
+                    'message': 'received from: ' + message.queue_name,
+                    'params': message.data,
+                })
+                guest_id = message.data.get('guest_id')
+                filepath = message.data.get('face_image_path')
+                output_path = message.data.get('output_data_path')
+
+                fr = FaceRecognition()
+                person_list = fr.getPersonList()
+                ids = len(person_list)
+                person = fr.getFaceAttributes(filepath)
+                # 一番大きい顔を選ぶ
+                attributes = {
+                    'gender': str(person[0].face_attributes.gender).lstrip('Gender.'),
+                    'age': str(person[0].face_attributes.age)
+                }
+                now = datetime.datetime.now()
+                tmp_file = os.path.join(output_path, now.strftime('%Y%m%d_%H%M%S') + '.jpg')
+                image_data = Image.open(filepath)
+                image_data.crop(getRectangle(person[0].face_rectangle)).save(tmp_file, quality=95)
+                name = now.strftime('%Y%m%d_%H%M%S')
+                person_id = fr.createPerson(ids)
+                fr.setPersonImage(person_id, tmp_file, person[0].face_rectangle)
+                fr.train()
+                os.remove(tmp_file)
+
+                payload = {
+                    'result': True,
+                    'filepath': filepath,
+                    'guest_id': guest_id,
+                    'face_id_azure': str(person_id),
+                    'attributes': attributes,
+                }
+                logger.debug({
+                    'message': 'send message',
+                    'params': payload,
+                })
+                await mq_client.send(queue_to, payload)
+                logger.info('sent message')
+        except Exception as e:
+            logger.error({
+                'message': 'error with processing message',
+                'error': str(e),
+            })
+
+if __name__ == '__main__':
+    asyncio.run(main())
 ```
-2. aion-service-definitions/services.ymlに設定を記載し、AionCore経由でKubernetesコンテナを起動します。  
-services.ymlへの記載例：    
+
+## マイクロサービスにおける RabbitMQ の Kubernetes yml 設定ファイル    
+AION では、マイクロサービス毎に、RabbitMQ に関する Kubernetes ymlファイルの内容を 定義する必要があります。  
+当該 yml ファイルでは、QUEUE の生成マイクロサービスの名前(=自マイクロサービス自身、QUEUE_ORIGIN)、QUEUE を送信するマイクロサービスの名前(QUEUE_TO)を記述します。  
+QUEUE_TO は複数、定義することができます。  
+例えば、azure-face-api-registrator-kube の services.yml において、次のように書かれています。  
 ```
-azure-face-api-identifier-kube:
+azure-face-api-registrator-kube:
   startup: yes
   always: yes
   scale: 1
   env:
-    MYSQL_USER: XXXXXXXX
-    MYSQL_HOST: mysql
-    MYSQL_PASSWORD: xxxxxxxxx
-    MYSQL_DB: database
-    RABBITMQ_URL: amqp://username:password@rabbitmq:5672/virtualhost
-    QUEUE_ORIGIN: azure-face-api-identifier-kube-queue
-    QUEUE_TO: get-response-of-face-api-kube-queue
-    QUEUE_TO_FOR_LOG: send-data-to-azure-iot-hub-queue
+    RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/xxxxxxxx
+    QUEUE_ORIGIN: azure-face-api-registrator-kube-queue
+    QUEUE_TO: register-face-to-guest-table-kube-queue
 ```
-## Flowchart
-![フローチャート図](doc/face-recognition-flowchart.png)
