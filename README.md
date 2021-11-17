@@ -1,23 +1,13 @@
 # azure-face-api-identifier-kube  
 ## 概要  
-1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の、位置座標、性別・年齢、等、の情報を取得します。  
-このとき、Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
+1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の位置座標(X軸/Y軸)、性別・年齢等の情報を取得します。  
+Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
 この仕様を利用して、その先頭の顔の FaceID、性別・年齢 等の 情報 を取得・保持します。  
-最後に、取得・保持されたFaceIDを、アプリケーションサイドでSQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
-なお、本マイクロサービスは、顔認証判定結果のデータ解析のために、ログデータを出力します。  
+最後に、取得・保持されたFaceIDを、SQLに保存された登録済みの顔IDと照らし合わせ、SQLに存在すれば登録済み既存ユーザーと判定し、存在しなければ新規ユーザーと判定します。  
+なお、本マイクロサービスは、顔認証のデータ解析のために、ログデータを出力します。
 
-参考1：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
-
-参考2：Azure Face API の仕様により、1つの判定されたFaceIDに対して複数の認証結果の選択肢であるPersonIDが存在する場合、それぞれのPersonIDに対して確証度を付与して出力します。  
-このとき、確証度の高い順にPersonIDのデータが並びます。この仕様を利用して、1つのFacdIDに対して、一定の確証度の閾値を設け、その閾値以上の確証度を持つPersonID(大抵の状況ではPersonID=FaceID)とその性別・年齢等の情報を取得・保持します。  
-
-参考3：Azure Face API の仕様では、Azure Face API(Detect)では、FaceID ならびに PersonID は Azure Face API で永続的に管理維持されません。  
-Azure face API で永続的にFaceID / PersonID を管理維持する(通常のアプリケーションの要求としてこの行為が必要になります)ためには、別途、Azure Face API(Person Group _ Person - Create / Add Face)を利用する必要があります。この機能の利用については、[azure-face-api-registrator-kube](https://github.com/latonaio/azure-face-api-registrator-kube) を参照してください。
-
-## azure-face-api-identifier-kube を使用したエッジコンピューティングアーキテクチャの一例  
-azure-face-api-identifier-kube は、以下の黄色い枠の部分のリソースです。  
-![フローチャート図](doc/omotebako_architecture_20211104.drawio.png)
-
+参考：Azure Face API の Person Group は、Azure Face API ユーザ のインスタンス毎に独立した顔情報の維持管理の単位です。  
+参考：1枚の画像に対して複数の顔が存在する場合は、1番確証度が大きい顔に対して判定を行います。  
 
 ## 前提条件  
 Azure Face API サービス に アクセスキー、エンドポイント、Person Group を登録します。  
@@ -35,11 +25,17 @@ $ bash train.sh
 * SQLにface_id_azure (TEXT), guest_id (INT) カラムを持つguestテーブルを作成しておきます。  
 * `shell/setup-env.sh`　は、face-api-config.jsonと.envを作成するためのシェルスクリプトです。    
 
-## Requirements（Azure Face API の Version 指定)  
+## Requirements（Azure Face API の Version 指定)    
 azure-face-api の version を指定します。  
 本レポジトリの requirements.txt では、下記のように記載されています。  
 ```
-azure-cognitiveservices-vision-face==0.4.1
+azure-cognitiveservices-vision-face==0.5.0
+```
+
+## Recognition API の Version  
+Azure Face API で使用する Recognition API のバージョン指定は、関連ソースコードとともに、main.py の中にあります。  
+```
+RECOGNITION_MODEL="recognition_04"
 ```
 
 ## I/O
@@ -52,48 +48,30 @@ azure-cognitiveservices-vision-face==0.4.1
 }
 ```
 1. 顧客ID(guest_key)  
-(エッジ)アプリケーションの顧客ID  
+(エッジ)アプリケーションの顧客ID???  
 2. 顔画像のパス(image_path)  
 入力顔画像のパス  
 
-#### Output1-1  
-出力データのJSONフォーマットは、outputs/sample1.json にある通り、次の様式です。  
+#### Output1
+出力データのJSONフォーマットは、outputs/sample.json にある通り、次の様式です。
 ```
 {
-    "connection_key": "response",
     "result": true,
-    "redis_key": "0000000000000",
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
-    "status": "new",
-    "age": 37.0,
-    "gender": "male"
-}
-```  
-#### Output1-2  
-確証度を含めて取得する場合の出力データのJSONフォーマットは、outputs/sample2.json  にある通り、次の様式です。  
-確証度が一定の閾値を超えているPersonIDが複数存在する場合、Personのレコードが複数になります。
-```
-{
-    "connection_key": "response",
-    "result": true,
-    "redis_key": "0000000000000",
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/1634175178825.jpg",
-    "person": {
-        "additional_properties": {},
-        "person_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-        "confidence": 0.94743
-    },
+    "filepath": "/var/lib/aion/Data/direct-next-service_1/634173065679.jpg",
     "guest_id": 1,
-    "status": "existing"
+    "face_id_azure": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "attributes": {
+        "gender": "male",
+        "age": "37.0"
+    }
 }
-```  
-
+```
 #### Output2
-ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/logs.sample.json にある通り、次の様式です。
+ログデータ(顔認証ログデータ解析用)のJSONフォーマットは、outputs/sample.json にある通り、次の様式です。
 ```
 {
     "imagePath": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg",
-    "faceId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "faceId": "00000000-0000-0000-0000-000000000000",
     "responseData": {
         "candidates": []
     }
@@ -101,25 +79,26 @@ azure-cognitiveservices-vision-face==0.4.1
 ```
 
 ## Getting Started
-1. 下記コマンドでDockerイメージを作成します。  
+1. 下記コマンドでDockerイメージを作成する。  
 ```
 make docker-build
 ```
-2. aion-service-definitions/services.ymlに設定を記載し、AionCore経由でKubernetesコンテナを起動します。  
-services.ymlへの記載例：    
+2. aion-service-definitions/services.ymlに設定を記載し、AionCore経由でKubernetesコンテナを起動する。  
+services.ymlへの記載例  
+multiple: noとして起動する。  
 ```
 azure-face-api-identifier-kube:
-  startup: yes
-  always: yes
-  scale: 1
+  multiple: no
   env:
     MYSQL_USER: XXXXXXXX
     MYSQL_HOST: mysql
     MYSQL_PASSWORD: xxxxxxxxx
     MYSQL_DB: database
+    KANBAN_ADDR: aion-statuskanban:10000
     RABBITMQ_URL: amqp://username:password@rabbitmq:5672/virtualhost
-    QUEUE_ORIGIN: azure-face-api-identifier-kube-queue
-    QUEUE_TO_FOR_LOG: send-data-to-azure-iot-hub-queue
+    QUEUE_FROM: queue_from
+    QUEUE_TO: queue_to
+    QUEUE_TO_FOR_LOG: queue_to_for_log
 ```
 ## Flowchart
-![フローチャート図](doc/omotebako_architecture_20211104.drawio.png)
+![フローチャート図](doc/face-recognition-flowchart.png)
