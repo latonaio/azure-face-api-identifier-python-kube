@@ -13,6 +13,9 @@ import MySQLdb
 from azure.cognitiveservices.vision.face import FaceClient
 from msrest.authentication import CognitiveServicesCredentials
 
+# AION共通モジュール
+from aion.microservice import main_decorator, Options, WITHOUT_KANBAN
+
 # redis用モジュール
 import redis
 
@@ -27,6 +30,7 @@ BASE_PATH = os.path.join(os.path.dirname(__file__), )
 SERVICE_NAME = 'azure-face-api-identifier-kube'
 DEFAULT_REDIS_HOST = 'redis-cluster'
 PERSON_GROUP_ID = ''
+RECOGNITION_MODEL="recognition_04"
 logger = logging.getLogger(__name__)
 
 class RedisClient:
@@ -51,10 +55,9 @@ class FaceRecognition():
         )
 
     def detectFacesFromImage(self, faceImage: str):
-        params = ['gender', 'age']
         with open(faceImage, 'r+b') as image:
             # detect faces
-            faces = self.face_client.face.detect_with_stream(image, return_face_attributes=params)
+            faces = self.face_client.face.detect_with_stream(image,recognition_model=RECOGNITION_MODEL)
         return faces
 
     def identityFromRegisterdFace(self, face):
@@ -105,17 +108,17 @@ async def main():
     # RabbitMQ接続情報
     rabbitmq_url = os.environ['RABBITMQ_URL']
     # キューの読み込み元
-    queue_origin = os.environ['QUEUE_ORIGIN']
+    queue_from = os.environ['QUEUE_FROM']
     # キューの書き込み先
     queue_to_for_log = os.environ['QUEUE_TO_FOR_LOG']
 
     try:
-        mq_client = await RabbitmqClient.create(rabbitmq_url, {queue_origin}, {queue_to_for_log})
+        mq_client = await RabbitmqClient.create(rabbitmq_url, {queue_from}, {queue_to_for_log})
     except Exception as e:
         logger.error({
             'message': 'failed to connect rabbitmq!',
             'error': str(e),
-            'queue_origin': queue_origin,
+            'queue_from': queue_from,
             'queue_to_for_log': queue_to_for_log,
         })
         # 本来 sys.exit を使うべきだが、効かないので
@@ -173,8 +176,6 @@ async def main():
                         'redis_key': redis_key,
                         'filepath': vr_image,
                         'status': 'new',
-                        'age': faces[0].face_attributes.age,
-                        'gender': str(faces[0].face_attributes.gender).lstrip('Gender.'),
                     }
                     logger.info({
                         'message': 'send message: detect new face',
@@ -219,54 +220,58 @@ async def main():
 
 
 async def insert_data_to_redis(data):
-            try:
-                redis_key = int(data.get('redis_key'))
-                customer = data.get('status')
-                prior_res = data.get('result')
+        try:
+            redis_key = int(data.get('redis_key'))
+            customer = data.get('status')
+            prior_res = data.get('result')
 
-                if prior_res and customer == 'existing':
-                    data = {
-                        'status': 'success',
-                        'customer': customer,
-                        'guest_id': int(data.get('guest_id')),
-                    }
-                    logger.debug({
-                        'message': 'redis data',
-                        'params': data
-                    })
-                elif prior_res and customer == 'new':
-                    data = {
-                        'status': 'success',
-                        'customer': customer,
-                        'age_by_face': int(data.get('age')),
-                        'gender_by_face': data.get('gender'),
-                        'image_path': data.get('filepath'),
-                    }
-                    logger.debug({
-                        'message': 'redis data',
-                        'params': data
-                    })
-                else:
-                    data = {
-                        'status': 'failed',
-                        'customer': '',
-                        'guest_id': '',
-                        'failed_ms': data.get('microservice')
-                    }
-                    logger.debug({
-                        'message': 'redis data',
-                        'params': data
-                    })
-
-                rc = RedisClient()
-                rc.hmset(redis_key, data)
-                logger.info('insert redis')
-
-            except Exception as e:
-                logger.error({
-                    'message': 'error',
-                    'error': str(e),
+            if prior_res and customer == 'existing':
+                data = {
+                    'status': 'success',
+                    'customer': customer,
+                    'guest_id': int(data.get('guest_id')),
+                }
+                logger.debug({
+                    'message': 'redis data',
+                    'params': data
+                })
+            elif prior_res and customer == 'new':
+                data = {
+                    'status': 'success',
+                    'customer': customer,
+                    'image_path': data.get('filepath'),
+                }
+                logger.debug({
+                    'message': 'redis data',
+                    'params': data
+                })
+            else:
+                data = {
+                    'status': 'failed',
+                    'customer': '',
+                    'guest_id': '',
+                    'failed_ms': data.get('microservice')
+                }
+                logger.debug({
+                    'message': 'redis data',
+                    'params': data
                 })
 
-if __name__ == '__main__':
+            rc = RedisClient()
+            rc.hmset(redis_key, data)
+            logger.info('insert redis')
+
+        except Exception as e:
+            logger.error({
+                'message': 'error',
+                'error': str(e),
+            })
+
+@main_decorator(SERVICE_NAME, WITHOUT_KANBAN)
+def main_wrapper(opt: Options):
+    logger.info('start')
     asyncio.run(main())
+
+
+if __name__ == '__main__':
+    main_wrapper()
