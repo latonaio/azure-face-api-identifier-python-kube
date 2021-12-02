@@ -27,7 +27,7 @@ from custom_logger import init_logger
 
 
 BASE_PATH = os.path.join(os.path.dirname(__file__), )
-SERVICE_NAME = 'azure-face-api-identifier-kube'
+SERVICE_NAME = 'azure-face-api-identifier-python-kube'
 DEFAULT_REDIS_HOST = 'redis-cluster'
 PERSON_GROUP_ID = ''
 RECOGNITION_MODEL="recognition_04"

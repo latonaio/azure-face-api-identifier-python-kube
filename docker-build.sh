@@ -3,7 +3,7 @@
 PUSH=$1
 DATE="$(date "+%Y%m%d%H%M")"
 REPOSITORY_PREFIX="latonaio"
-SERVICE_NAME="azure-face-api-identifier-kube"
+SERVICE_NAME="azure-face-api-identifier-python-kube"
 
 DOCKER_BUILDKIT=1 docker build --secret id=ssh,src=$HOME/.ssh/id_rsa --progress=plain -t ${SERVICE_NAME}:"${DATE}" .
 # tagging

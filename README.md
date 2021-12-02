@@ -1,4 +1,4 @@
-# azure-face-api-identifier-kube  
+# azure-face-api-identifier-python-kube  
 ## 概要  
 1枚の画像を Azure Face API(Detect) にかけ、返り値として、画像に映っているすべての人物の顔の位置座標(X軸/Y軸)、性別・年齢等の情報を取得します。  
 Azure Face API の仕様により、顔の位置座標を形成する長方形の面積が最も広い顔が先頭に来ます。  
@@ -44,7 +44,7 @@ RECOGNITION_MODEL="recognition_04"
 ```
 {
     "guest_key": "xxxxxxxxxxxxx",
-    "image_path": "/var/lib/aion/Data/direct-next-service_1/1634173065679.jpg"
+    "image_path": "/var/lib/aion/Data/ui-backend-for-omotebako/1634173065679.jpg"
 }
 ```
 1. 顧客ID(guest_key)  
@@ -57,7 +57,7 @@ RECOGNITION_MODEL="recognition_04"
 ```
 {
     "result": true,
-    "filepath": "/var/lib/aion/Data/direct-next-service_1/634173065679.jpg",
+    "filepath": "/var/lib/aion/Data/ui-backend-for-omotebako/634173065679.jpg",
     "guest_id": 1,
     "face_id_azure": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
     "attributes": {
@@ -87,7 +87,7 @@ make docker-build
 services.ymlへの記載例  
 multiple: noとして起動する。  
 ```
-azure-face-api-identifier-kube:
+azure-face-api-identifier-python-kube:
   multiple: no
   env:
     MYSQL_USER: XXXXXXXX

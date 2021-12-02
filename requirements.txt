@@ -1,5 +1,5 @@
 azure-cognitiveservices-vision-face==0.5.0
-git+ssh://git@bitbucket.org/latonaio/azure-face-api-identifier-kube.git@master#egg=redis-python-client
+git+ssh://git@bitbucket.org/latonaio/azure-face-api-identifier-python-kube.git@master#egg=redis-python-client
 git+ssh://git@bitbucket.org/latonaio/rabbitmq-python-client.git@develop#egg=rabbitmq_client
 git+ssh://git@bitbucket.org/latonaio/python-logging-library.git@develop#egg=custom_logger
 git+ssh://git@bitbucket.org/latonaio/AION-related-python-library.git@master
